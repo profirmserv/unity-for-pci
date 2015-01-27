@@ -249,20 +249,33 @@ void UnityPrintOk(void)
 //-----------------------------------------------
 void UnityTestResultsBegin(const char* file, const UNITY_LINE_TYPE line)
 {
-    UNITY_PRINT_EOL;
+    if (!Unity.Csv)
+    {
+        UNITY_PRINT_EOL;
+    }
     UnityPrint(file);
     UNITY_OUTPUT_CHAR(':');
     UnityPrintNumber(line);
     UNITY_OUTPUT_CHAR(':');
-    UnityPrint(Unity.CurrentTestName);
-    UNITY_OUTPUT_CHAR(':');
+    if (!Unity.Csv)
+    {
+        UnityPrint(Unity.CurrentTestName);
+        UNITY_OUTPUT_CHAR(':');
+    }
 }
 
 //-----------------------------------------------
 void UnityTestResultsFailBegin(const UNITY_LINE_TYPE line)
 {
+    if (Unity.Csv)
+    {
+        UnityPrint("FAIL:");
+    }
     UnityTestResultsBegin(Unity.TestFile, line);
-    UnityPrint("FAIL:");
+    if (!Unity.Csv)
+    {
+        UnityPrint("FAIL:");
+    }
 }
 
 //-----------------------------------------------
@@ -368,6 +381,11 @@ void UnityAssertBits(const _U_SINT mask,
 {
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertBits");
+    }
+
     if ((mask & expected) != (mask & actual))
     {
         UnityTestResultsFailBegin(lineNumber);
@@ -381,7 +399,49 @@ void UnityAssertBits(const _U_SINT mask,
 }
 
 //-----------------------------------------------
-void UnityAssertEqualNumber(const _U_SINT expected,
+static void PrintCsvEscaped( const char * string )
+{
+    const char* pch = string;
+
+    if (pch != NULL)
+    {
+        while (*pch)
+        {
+            if (*pch == '"')
+            {
+                UNITY_OUTPUT_CHAR('"');
+                UNITY_OUTPUT_CHAR('"');
+            }
+            // printable characters plus CR & LF are printed
+            else if ((*pch <= 126) && (*pch >= 32))
+            {
+                UNITY_OUTPUT_CHAR(*pch);
+            }
+            //write escaped carriage returns
+            else if (*pch == 13)
+            {
+                UNITY_OUTPUT_CHAR('\\');
+                UNITY_OUTPUT_CHAR('r');
+            }
+            //write escaped line feeds
+            else if (*pch == 10)
+            {
+                UNITY_OUTPUT_CHAR('\\');
+                UNITY_OUTPUT_CHAR('n');
+            }
+            // unprintable characters are shown as codes
+            else
+            {
+                UNITY_OUTPUT_CHAR('\\');
+                UnityPrintNumberHex((_U_SINT)*pch, 2);
+            }
+            pch++;
+        }
+    }
+}
+
+void UnityAssertEqualNumber(const char * asString,
+                            const _U_SINT expected,
                             const _U_SINT actual,
                             const char* msg,
                             const UNITY_LINE_TYPE lineNumber,
@@ -389,20 +449,215 @@ void UnityAssertEqualNumber(const _U_SINT expected,
 {
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",");
+        UnityPrintNumberByStyle(expected, style);
+        UnityPrint(",");
+        UnityPrintNumberByStyle(actual, style);
+        UnityPrint(",");
+    }
+
     if (expected != actual)
     {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UnityTestResultsFailBegin(lineNumber);
         UnityPrint(UnityStrExpected);
         UnityPrintNumberByStyle(expected, style);
         UnityPrint(UnityStrWas);
         UnityPrintNumberByStyle(actual, style);
         UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UNITY_FAIL_AND_BAIL;
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
     }
 }
 
 //-----------------------------------------------
-void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
+void UnityAssertTrue(const char * asString,
+                     const _U_SINT actual,
+                     const char * msg,
+                     const UNITY_LINE_TYPE lineNumber)
+{
+    UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",");
+        UnityPrint("Not 0");
+        UnityPrint(",");
+        UnityPrintNumberByStyle(actual, UNITY_DISPLAY_STYLE_INT);
+        UnityPrint(",");
+    }
+
+    if (!actual)
+    {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UnityTestResultsFailBegin(lineNumber);
+        UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UNITY_FAIL_AND_BAIL;
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
+    }
+}
+
+//-----------------------------------------------
+void UnityAssertNull(const char * asString,
+                     const UNITY_PTR_ATTRIBUTE void * actual,
+                     const char * msg,
+                     const UNITY_LINE_TYPE lineNumber)
+{
+    UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",");
+        UnityPrint("NULL");
+        UnityPrint(",");
+        UnityPrintNumberByStyle((_U_SINT)(_UP)actual, UNITY_DISPLAY_STYLE_POINTER);
+        UnityPrint(",");
+    }
+
+    if (actual != NULL)
+    {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UnityTestResultsFailBegin(lineNumber);
+        UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UNITY_FAIL_AND_BAIL;
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
+    }
+}
+
+//-----------------------------------------------
+void UnityAssertNotNull(const char * asString,
+                        const UNITY_PTR_ATTRIBUTE void * actual,
+                        const char * msg,
+                        const UNITY_LINE_TYPE lineNumber)
+{
+    UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",");
+        UnityPrint("Not NULL");
+        UnityPrint(",");
+        UnityPrintNumberByStyle((_U_SINT)(_UP)actual, UNITY_DISPLAY_STYLE_POINTER);
+        UnityPrint(",");
+    }
+
+    if (actual == NULL)
+    {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UnityTestResultsFailBegin(lineNumber);
+        UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
+        UNITY_FAIL_AND_BAIL;
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
+    }
+}
+
+//-----------------------------------------------
+static void PrintIntArray(UNITY_PTR_ATTRIBUTE const void *array,
+                          const _UU32 num_elements,
+                          const UNITY_DISPLAY_STYLE_T style)
+{
+    _UU32 elements = num_elements;
+
+    if (array == NULL)
+    {
+        UnityPrint("NULL");
+        return;
+    }
+
+    UnityPrint("{");
+    while (elements--)
+    {
+        switch (style & ~UNITY_DISPLAY_RANGE_AUTO)
+        {
+            case UNITY_DISPLAY_STYLE_HEX8:
+            case UNITY_DISPLAY_STYLE_INT8:
+            case UNITY_DISPLAY_STYLE_UINT8:
+                UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US8*)array, style);
+                array += 1;
+                break;
+            case UNITY_DISPLAY_STYLE_HEX16:
+            case UNITY_DISPLAY_STYLE_INT16:
+            case UNITY_DISPLAY_STYLE_UINT16:
+                UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US16*)array, style);
+                array += 2;
+                break;
+#ifdef UNITY_SUPPORT_64
+            case UNITY_DISPLAY_STYLE_HEX64:
+            case UNITY_DISPLAY_STYLE_INT64:
+            case UNITY_DISPLAY_STYLE_UINT64:
+                UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US64*)array, style);
+                array += 8;
+                break;
+#endif
+            default:
+                UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US32*)array, style);
+                array += 4;
+                break;
+        }
+        if (elements)
+        {
+            UnityPrint(",");
+        }
+    }
+    UnityPrint("}");
+}
+
+void UnityAssertEqualIntArray(const char * asString,
+                              UNITY_PTR_ATTRIBUTE const void* expected,
                               UNITY_PTR_ATTRIBUTE const void* actual,
                               const _UU32 num_elements,
                               const char* msg,
@@ -415,11 +670,30 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
 
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",\"");
+        PrintIntArray(expected, num_elements, style);
+        UnityPrint("\",\"");
+        PrintIntArray(actual, num_elements, style);
+        UnityPrint("\",");
+    }
+
     if (elements == 0)
     {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UnityTestResultsFailBegin(lineNumber);
         UnityPrint(UnityStrPointless);
         UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UNITY_FAIL_AND_BAIL;
     }
 
@@ -438,6 +712,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
             {
                 if (*ptr_exp != *ptr_act)
                 {
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UnityTestResultsFailBegin(lineNumber);
                     UnityPrint(UnityStrElement);
                     UnityPrintNumberByStyle((num_elements - elements - 1), UNITY_DISPLAY_STYLE_UINT);
@@ -446,6 +724,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
                     UnityPrint(UnityStrWas);
                     UnityPrintNumberByStyle(*ptr_act, style);
                     UnityAddMsgIfSpecified(msg);
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UNITY_FAIL_AND_BAIL;
                 }
                 ptr_exp += 1;
@@ -459,6 +741,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
             {
                 if (*(UNITY_PTR_ATTRIBUTE _US16*)ptr_exp != *(UNITY_PTR_ATTRIBUTE _US16*)ptr_act)
                 {
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UnityTestResultsFailBegin(lineNumber);
                     UnityPrint(UnityStrElement);
                     UnityPrintNumberByStyle((num_elements - elements - 1), UNITY_DISPLAY_STYLE_UINT);
@@ -467,6 +753,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
                     UnityPrint(UnityStrWas);
                     UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US16*)ptr_act, style);
                     UnityAddMsgIfSpecified(msg);
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UNITY_FAIL_AND_BAIL;
                 }
                 ptr_exp += 2;
@@ -481,6 +771,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
             {
                 if (*(UNITY_PTR_ATTRIBUTE _US64*)ptr_exp != *(UNITY_PTR_ATTRIBUTE _US64*)ptr_act)
                 {
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UnityTestResultsFailBegin(lineNumber);
                     UnityPrint(UnityStrElement);
                     UnityPrintNumberByStyle((num_elements - elements - 1), UNITY_DISPLAY_STYLE_UINT);
@@ -489,6 +783,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
                     UnityPrint(UnityStrWas);
                     UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US64*)ptr_act, style);
                     UnityAddMsgIfSpecified(msg);
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UNITY_FAIL_AND_BAIL;
                 }
                 ptr_exp += 8;
@@ -501,6 +799,10 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
             {
                 if (*(UNITY_PTR_ATTRIBUTE _US32*)ptr_exp != *(UNITY_PTR_ATTRIBUTE _US32*)ptr_act)
                 {
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UnityTestResultsFailBegin(lineNumber);
                     UnityPrint(UnityStrElement);
                     UnityPrintNumberByStyle((num_elements - elements - 1), UNITY_DISPLAY_STYLE_UINT);
@@ -509,12 +811,22 @@ void UnityAssertEqualIntArray(UNITY_PTR_ATTRIBUTE const void* expected,
                     UnityPrint(UnityStrWas);
                     UnityPrintNumberByStyle(*(UNITY_PTR_ATTRIBUTE _US32*)ptr_act, style);
                     UnityAddMsgIfSpecified(msg);
+                    if (Unity.Csv)
+                    {
+                        UnityPrint("\"");
+                    }
                     UNITY_FAIL_AND_BAIL;
                 }
                 ptr_exp += 4;
                 ptr_act += 4;
             }
             break;
+    }
+
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
     }
 }
 
@@ -532,6 +844,11 @@ void UnityAssertEqualFloatArray(UNITY_PTR_ATTRIBUTE const _UF* expected,
     _UF diff, tol;
 
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertEqualFloatArray");
+    }
 
     if (elements == 0)
     {
@@ -576,7 +893,8 @@ void UnityAssertEqualFloatArray(UNITY_PTR_ATTRIBUTE const _UF* expected,
 }
 
 //-----------------------------------------------
-void UnityAssertFloatsWithin(const _UF delta,
+void UnityAssertFloatsWithin(const char * asString,
+                             const _UF delta,
                              const _UF expected,
                              const _UF actual,
                              const char* msg,
@@ -596,9 +914,30 @@ void UnityAssertFloatsWithin(const _UF delta,
         pos_delta = 0.0f - pos_delta;
     }
 
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",");
+#ifdef UNITY_FLOAT_VERBOSE
+        UnityPrintFloat(expected);
+        UnityPrint(" +/- ");
+        UnityPrintFloat(delta);
+#endif
+        UnityPrint(",");
+#ifdef UNITY_FLOAT_VERBOSE
+        UnityPrintFloat(actual);
+#endif
+        UnityPrint(",");
+    }
+
     //This first part of this condition will catch any NaN or Infinite values
     if ((diff * 0.0f != 0.0f) || (pos_delta < diff))
     {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UnityTestResultsFailBegin(lineNumber);
 #ifdef UNITY_FLOAT_VERBOSE
         UnityPrint(UnityStrExpected);
@@ -609,7 +948,17 @@ void UnityAssertFloatsWithin(const _UF delta,
         UnityPrint(UnityStrDelta);
 #endif
         UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UNITY_FAIL_AND_BAIL;
+    }
+
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
     }
 }
 
@@ -619,6 +968,11 @@ void UnityAssertFloatIsInf(const _UF actual,
                            const UNITY_LINE_TYPE lineNumber)
 {
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertFloatIsInf");
+    }
 
     // In Microsoft Visual C++ Express Edition 2008,
     //   if ((1.0f / f_zero) != actual)
@@ -648,6 +1002,11 @@ void UnityAssertFloatIsNegInf(const _UF actual,
 {
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertFloatIsNegInf");
+    }
+
     // The rationale for not using 1.0f/0.0f is given in UnityAssertFloatIsInf's body.
     if ((-1.0f / f_zero) != actual)
     {
@@ -671,6 +1030,11 @@ void UnityAssertFloatIsNaN(const _UF actual,
                            const UNITY_LINE_TYPE lineNumber)
 {
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertFloatIsNaN");
+    }
 
     if (actual == actual)
     {
@@ -759,6 +1123,11 @@ void UnityAssertDoublesWithin(const _UD delta,
 
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertDoublesWithin");
+    }
+
     if (diff < 0.0)
     {
         diff = 0.0 - diff;
@@ -792,6 +1161,11 @@ void UnityAssertDoubleIsInf(const _UD actual,
 {
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertDoubleIsInf");
+    }
+
     // The rationale for not using 1.0/0.0 is given in UnityAssertFloatIsInf's body.
     if ((1.0 / d_zero) != actual)
     {
@@ -816,6 +1190,11 @@ void UnityAssertDoubleIsNegInf(const _UD actual,
 {
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertDoubleIsNegInf");
+    }
+
     // The rationale for not using 1.0/0.0 is given in UnityAssertFloatIsInf's body.
     if ((-1.0 / d_zero) != actual)
     {
@@ -839,6 +1218,11 @@ void UnityAssertDoubleIsNaN(const _UD actual,
                             const UNITY_LINE_TYPE lineNumber)
 {
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertDoubleIsNaN");
+    }
 
     if (actual == actual)
     {
@@ -867,6 +1251,11 @@ void UnityAssertNumbersWithin( const _U_SINT delta,
                                const UNITY_DISPLAY_STYLE_T style)
 {
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertNumbersWithin");
+    }
 
     if ((style & UNITY_DISPLAY_RANGE_INT) == UNITY_DISPLAY_RANGE_INT)
     {
@@ -898,7 +1287,8 @@ void UnityAssertNumbersWithin( const _U_SINT delta,
 }
 
 //-----------------------------------------------
-void UnityAssertEqualString(const char* expected,
+void UnityAssertEqualString(const char * asString,
+                            const char* expected,
                             const char* actual,
                             const char* msg,
                             const UNITY_LINE_TYPE lineNumber)
@@ -906,6 +1296,17 @@ void UnityAssertEqualString(const char* expected,
     _UU32 i;
 
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",\"");
+        PrintCsvEscaped(expected);
+        UnityPrint("\",\"");
+        PrintCsvEscaped(actual);
+        UnityPrint("\",");
+    }
 
     // if both pointers not null compare the strings
     if (expected && actual)
@@ -929,10 +1330,23 @@ void UnityAssertEqualString(const char* expected,
 
     if (Unity.CurrentTestFailed)
     {
+      if (Unity.Csv)
+      {
+          UnityPrint("\"");
+      }
       UnityTestResultsFailBegin(lineNumber);
       UnityPrintExpectedAndActualStrings(expected, actual);
       UnityAddMsgIfSpecified(msg);
+      if (Unity.Csv)
+      {
+          UnityPrint("\"");
+      }
       UNITY_FAIL_AND_BAIL;
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
     }
 }
 
@@ -946,6 +1360,11 @@ void UnityAssertEqualStringArray( const char** expected,
     _UU32 i, j = 0;
 
     UNITY_SKIP_EXECUTION;
+
+    if (Unity.Csv)
+    {
+        TEST_FAIL_MESSAGE("CSV not implemented for UnityAssertEqualStringArray");
+    }
 
     // if no elements, it's an error
     if (num_elements == 0)
@@ -997,7 +1416,8 @@ void UnityAssertEqualStringArray( const char** expected,
 }
 
 //-----------------------------------------------
-void UnityAssertEqualMemory( UNITY_PTR_ATTRIBUTE const void* expected,
+void UnityAssertEqualMemory( const char * asString,
+                             UNITY_PTR_ATTRIBUTE const void* expected,
                              UNITY_PTR_ATTRIBUTE const void* actual,
                              const _UU32 length,
                              const _UU32 num_elements,
@@ -1011,11 +1431,30 @@ void UnityAssertEqualMemory( UNITY_PTR_ATTRIBUTE const void* expected,
 
     UNITY_SKIP_EXECUTION;
 
+    if (Unity.Csv)
+    {
+        UnityPrint(",\"");
+        PrintCsvEscaped(asString);
+        UnityPrint("\",\"");
+        PrintIntArray(expected, length * num_elements, UNITY_DISPLAY_STYLE_HEX8);
+        UnityPrint("\",\"");
+        PrintIntArray(actual, length * num_elements, UNITY_DISPLAY_STYLE_HEX8);
+        UnityPrint("\",");
+    }
+
     if ((elements == 0) || (length == 0))
     {
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UnityTestResultsFailBegin(lineNumber);
         UnityPrint(UnityStrPointless);
         UnityAddMsgIfSpecified(msg);
+        if (Unity.Csv)
+        {
+            UnityPrint("\"");
+        }
         UNITY_FAIL_AND_BAIL;
     }
 
@@ -1030,6 +1469,10 @@ void UnityAssertEqualMemory( UNITY_PTR_ATTRIBUTE const void* expected,
         {
             if (*ptr_exp != *ptr_act)
             {
+                if (Unity.Csv)
+                {
+                    UnityPrint("\"");
+                }
                 UnityTestResultsFailBegin(lineNumber);
                 UnityPrint(UnityStrMemory);
                 if (num_elements > 1)
@@ -1044,6 +1487,10 @@ void UnityAssertEqualMemory( UNITY_PTR_ATTRIBUTE const void* expected,
                 UnityPrint(UnityStrWas);
                 UnityPrintNumberByStyle(*ptr_act, UNITY_DISPLAY_STYLE_HEX8);
                 UnityAddMsgIfSpecified(msg);
+                if (Unity.Csv)
+                {
+                    UnityPrint("\"");
+                }
                 UNITY_FAIL_AND_BAIL;
             }
             ptr_exp += 1;
@@ -1051,6 +1498,11 @@ void UnityAssertEqualMemory( UNITY_PTR_ATTRIBUTE const void* expected,
         }
         /////////////////////////////////////
 
+    }
+    if (Unity.Csv)
+    {
+        UnityPrint("PASS");
+        UNITY_OUTPUT_CHAR('\n');
     }
 }
 
@@ -1062,11 +1514,33 @@ void UnityFail(const char* msg, const UNITY_LINE_TYPE line)
 {
     UNITY_SKIP_EXECUTION;
 
-    UnityTestResultsBegin(Unity.TestFile, line);
-    UnityPrintFail();
+    if (Unity.Csv)
+    {
+        UnityPrint(",");
+        UnityPrint("TEST_FAIL(");
+        if (msg != NULL)
+        {
+            UnityPrint("\"");
+            PrintCsvEscaped(msg);
+            UnityPrint("\"");
+        }
+        UnityPrint("),,,");
+
+        UnityTestResultsFailBegin(line);
+    }
+    else
+    {
+        UnityTestResultsBegin(Unity.TestFile, line);
+        UnityPrintFail();
+    }
+
     if (msg != NULL)
     {
-      UNITY_OUTPUT_CHAR(':');
+      if (!Unity.Csv)
+      {
+          UNITY_OUTPUT_CHAR(':');
+      }
+      
       if (msg[0] != ' ')
       {
         UNITY_OUTPUT_CHAR(' ');
@@ -1128,23 +1602,26 @@ void UnityBegin(void)
 //-----------------------------------------------
 int UnityEnd(void)
 {
-    UnityPrint("-----------------------");
-    UNITY_PRINT_EOL;
-    UnityPrintNumber(Unity.NumberOfTests);
-    UnityPrint(" Tests ");
-    UnityPrintNumber(Unity.TestFailures);
-    UnityPrint(" Failures ");
-    UnityPrintNumber(Unity.TestIgnores);
-    UnityPrint(" Ignored");
-    UNITY_PRINT_EOL;
-    if (Unity.TestFailures == 0U)
+    if (!Unity.Csv)
     {
-        UnityPrintOk();
+        UnityPrint("-----------------------");
+        UNITY_PRINT_EOL;
+        UnityPrintNumber(Unity.NumberOfTests);
+        UnityPrint(" Tests ");
+        UnityPrintNumber(Unity.TestFailures);
+        UnityPrint(" Failures ");
+        UnityPrintNumber(Unity.TestIgnores);
+        UnityPrint(" Ignored");
+        UNITY_PRINT_EOL;
+        if (Unity.TestFailures == 0U)
+        {
+            UnityPrintOk();
+        }
+        else
+        {
+            UnityPrintFail();
+        }
+        UNITY_PRINT_EOL;
     }
-    else
-    {
-        UnityPrintFail();
-    }
-    UNITY_PRINT_EOL;
     return Unity.TestFailures;
 }

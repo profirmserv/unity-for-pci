@@ -37,7 +37,10 @@ int UnityMain(int argc, char* argv[], void (*runAllTests)())
 
     for (r = 0; r < UnityFixture.RepeatCount; r++)
     {
-        announceTestRun(r);
+        if (!Unity.Csv)
+        {
+            announceTestRun(r);
+        }
         UnityBegin();
         runAllTests();
         UNITY_OUTPUT_CHAR('\n');
@@ -84,9 +87,22 @@ void UnityTestRunner(unityfunction* setup,
         Unity.CurrentTestName = printableName;
         Unity.CurrentTestLineNumber = line;
         if (!UnityFixture.Verbose)
+        {
             UNITY_OUTPUT_CHAR('.');
+        }
         else
+        {
+            if (Unity.Csv)
+            {
+                UnityPrint("\"");
+            }
             UnityPrint(printableName);
+            if (Unity.Csv)
+            {
+                UnityPrint("\"");
+                UNITY_OUTPUT_CHAR('\n');
+            }
+        }
 
         Unity.NumberOfTests++;
         UnityMalloc_StartTest();
@@ -323,6 +339,12 @@ int UnityGetCommandLineOptions(int argc, char* argv[])
             UnityFixture.Verbose = 1;
             i++;
         }
+        else if (strcmp(argv[i], "-c") == 0)
+        {
+            UnityFixture.Verbose = 1;
+            Unity.Csv = 1;
+            i++;
+        }
         else if (strcmp(argv[i], "-g") == 0)
         {
             i++;
@@ -371,7 +393,7 @@ void UnityConcludeFixtureTest()
     }
     else if (!Unity.CurrentTestFailed)
     {
-        if (UnityFixture.Verbose)
+        if (UnityFixture.Verbose && !Unity.Csv)
         {
             UnityPrint(" PASS");
             UNITY_OUTPUT_CHAR('\n');
