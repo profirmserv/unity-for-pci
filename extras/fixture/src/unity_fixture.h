@@ -24,7 +24,7 @@ int UnityMain(int argc, char* argv[], void (*runAllTests)(void));
 #define TEST_TEAR_DOWN(group) void TEST_##group##_TEAR_DOWN(void)
 
 
-#define TEST(group, name) \
+#define TEST(group, name, docString) \
     void TEST_##group##_##name##_(void);\
     void TEST_##group##_##name##_run(void)\
     {\
@@ -32,6 +32,7 @@ int UnityMain(int argc, char* argv[], void (*runAllTests)(void));
             TEST_##group##_##name##_,\
             TEST_##group##_TEAR_DOWN,\
             "TEST(" #group ", " #name ")",\
+            docString,\
             TEST_GROUP_##group, #name,\
             __FILE__, __LINE__);\
     }\

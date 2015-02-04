@@ -320,6 +320,7 @@ struct _Unity
     UNITY_COUNTER_TYPE CurrentTestFailed;
     UNITY_COUNTER_TYPE CurrentTestIgnored;
     int Csv;
+    int DocStrings;
     jmp_buf AbortFrame;
 };
 
@@ -339,6 +340,7 @@ void UnityDefaultTestRun(UnityTestFunction Func, const char* FuncName, const int
 //-------------------------------------------------------
 
 void UnityPrint(const char* string);
+void UnityPrintCsvEscaped( const char * string );
 void UnityPrintMask(const _U_UINT mask, const _U_UINT number);
 void UnityPrintNumberByStyle(const _U_SINT number, const UNITY_DISPLAY_STYLE_T style);
 void UnityPrintNumber(const _U_SINT number);

@@ -21,6 +21,7 @@ void UnityTestRunner(unityfunction * setup,
         unityfunction * body,
         unityfunction * teardown,
         const char * printableName,
+        const char * docString,
         const char * group,
         const char * name,
         const char * file, int line);

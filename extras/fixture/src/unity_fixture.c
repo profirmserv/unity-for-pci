@@ -37,7 +37,7 @@ int UnityMain(int argc, char* argv[], void (*runAllTests)())
 
     for (r = 0; r < UnityFixture.RepeatCount; r++)
     {
-        if (!Unity.Csv)
+        if (!Unity.Csv && !Unity.DocStrings)
         {
             announceTestRun(r);
         }
@@ -76,6 +76,7 @@ void UnityTestRunner(unityfunction* setup,
         unityfunction* testBody,
         unityfunction* teardown,
         const char * printableName,
+        const char * docString,
         const char * group,
         const char * name,
         const char * file, int line)
@@ -92,11 +93,23 @@ void UnityTestRunner(unityfunction* setup,
         }
         else
         {
-            if (Unity.Csv)
+            if (Unity.Csv || Unity.DocStrings)
             {
                 UnityPrint("\"");
             }
+            if (Unity.DocStrings)
+            {
+                UnityPrintCsvEscaped(file);
+                UnityPrint(":");
+
+            }
             UnityPrint(printableName);
+            if (Unity.DocStrings)
+            {
+                UnityPrint("\",\"");
+                UnityPrintCsvEscaped(docString);
+                UnityPrint("\",");
+            }
             if (Unity.Csv)
             {
                 UnityPrint("\"");
@@ -345,6 +358,12 @@ int UnityGetCommandLineOptions(int argc, char* argv[])
             Unity.Csv = 1;
             i++;
         }
+        else if (strcmp(argv[i], "-d") == 0)
+        {
+            UnityFixture.Verbose = 1;
+            Unity.DocStrings = 1;
+            i++;
+        }
         else if (strcmp(argv[i], "-g") == 0)
         {
             i++;
@@ -395,7 +414,10 @@ void UnityConcludeFixtureTest()
     {
         if (UnityFixture.Verbose && !Unity.Csv)
         {
-            UnityPrint(" PASS");
+            if (!Unity.DocStrings) {
+                UnityPrint(" ");
+            }
+            UnityPrint("PASS");
             UNITY_OUTPUT_CHAR('\n');
         }
     }
