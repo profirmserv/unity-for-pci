@@ -14,6 +14,8 @@ typedef struct _UNITY_FIXTURE_T
     unsigned int RepeatCount;
     const char* NameFilter;
     const char* GroupFilter;
+    int NameFilterExact;
+    int GroupFilterExact;
 } UNITY_FIXTURE_T;
 
 typedef void unityfunction();

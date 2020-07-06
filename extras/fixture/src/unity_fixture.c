@@ -50,21 +50,25 @@ int UnityMain(int argc, char* argv[], void (*runAllTests)())
     return UnityFailureCount();
 }
 
-static int selected(const char * filter, const char * name)
+static int selected(const char * filter, const char * name, int exactMatch)
 {
     if (filter == 0)
         return 1;
-    return strstr(name, filter) ? 1 : 0;
+    
+    if (exactMatch)
+        return (strcmp(name, filter) == 0);
+    else
+        return strstr(name, filter) ? 1 : 0;
 }
 
 static int testSelected(const char* test)
 {
-    return selected(UnityFixture.NameFilter, test);
+    return selected(UnityFixture.NameFilter, test, UnityFixture.NameFilterExact);
 }
 
 static int groupSelected(const char* group)
 {
-    return selected(UnityFixture.GroupFilter, group);
+    return selected(UnityFixture.GroupFilter, group, UnityFixture.GroupFilterExact);
 }
 
 static void runTestCase()
@@ -340,6 +344,8 @@ int UnityGetCommandLineOptions(int argc, char* argv[])
     UnityFixture.Verbose = 0;
     UnityFixture.GroupFilter = 0;
     UnityFixture.NameFilter = 0;
+    UnityFixture.GroupFilterExact = 0;
+    UnityFixture.NameFilterExact = 0;
     UnityFixture.RepeatCount = 1;
 
     if (argc == 1)
@@ -370,6 +376,7 @@ int UnityGetCommandLineOptions(int argc, char* argv[])
             if (i >= argc)
                 return 1;
             UnityFixture.GroupFilter = argv[i];
+            UnityFixture.GroupFilterExact = 0;
             i++;
         }
         else if (strcmp(argv[i], "-n") == 0)
@@ -378,6 +385,25 @@ int UnityGetCommandLineOptions(int argc, char* argv[])
             if (i >= argc)
                 return 1;
             UnityFixture.NameFilter = argv[i];
+            UnityFixture.NameFilterExact = 0;
+            i++;
+        }
+        else if (strcmp(argv[i], "-G") == 0)
+        {
+            i++;
+            if (i >= argc)
+                return 1;
+            UnityFixture.GroupFilter = argv[i];
+            UnityFixture.GroupFilterExact = 1;
+            i++;
+        }
+        else if (strcmp(argv[i], "-N") == 0)
+        {
+            i++;
+            if (i >= argc)
+                return 1;
+            UnityFixture.NameFilter = argv[i];
+            UnityFixture.NameFilterExact = 1;
             i++;
         }
         else if (strcmp(argv[i], "-r") == 0)
